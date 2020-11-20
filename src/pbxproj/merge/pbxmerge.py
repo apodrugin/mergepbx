@@ -318,17 +318,32 @@ class XCBuildConfigurationMerger3(_SimpleDictMerger3):
                     continue
                 dict_value = value[conflict]
                 if not isinstance(dict_value, (tuple, list, set, OrderedSet)):
-                    raise MergeException("can't merge %s, conflicting values in dictionary: %r" % (attribute, values_diff.conflicting))
+                    # Xcode converts list item to single element in project file
+                    # if list contains only one item. To handle this case properly
+                    # we perform backward conversion to list.
+                    if (isinstance(values.base[conflict], (tuple, list, set, OrderedSet)) or
+                        isinstance(values.mine[conflict], (tuple, list, set, OrderedSet)) or
+                        isinstance(values.theirs[conflict], (tuple, list, set, OrderedSet))):
+
+                        value[conflict] = [dict_value]
+                    else:
+                        raise MergeException("can't merge %s, conflicting values in dictionary: %r" % (attribute, values_diff.conflicting))
             #ok, we now can merge it with merge_ordered_set as we are sure that it is a tuple or something like that
             #and we assume that items are unique
-            dict_values = Value3(values.base[conflict], values.mine[conflict], values.theirs[conflict])
 
-            dict_values_diff = diff3_set(OrderedSet(dict_values.base), OrderedSet(dict_values.mines), OrderedSet(dict_values.theirs))
-            resolved_conflicts[conflict] = tuple(merge_ordered_set(dict_values_diff, dict_values.base, dict_values.mines, dict_values.theirs))
+            base_conflicted_key_value = values.base[conflict] if conflict in values.base else []
+            mine_conflicted_key_value = values.mine[conflict] if conflict in values.mine else []
+            theirs_conflicted_key_value = values.theirs[conflict] if conflict in values.theirs else []
 
-            values_diff.conflicting.remove(conflict) #mark as merged
+            dict_values = Value3(OrderedSet(base_conflicted_key_value), OrderedSet(mine_conflicted_key_value), OrderedSet(theirs_conflicted_key_value))
+            dict_values_diff = diff3_set(dict_values.base, dict_values.mine, dict_values.theirs)
+            resolved_conflicts[conflict] = tuple(merge_ordered_set(dict_values_diff, dict_values.base, dict_values.mine, dict_values.theirs))
+
+        for conflict in resolved_conflicts:
+            values_diff.conflicting.remove(conflict)  # mark as merged
 
         result[attribute] = merge_ordered_dict(values_diff, values.base, values.mine, values.theirs)
+
         for conflict, resolution in resolved_conflicts.iteritems():
             result[attribute] = resolution
 
