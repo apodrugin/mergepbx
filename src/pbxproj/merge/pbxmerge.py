@@ -345,7 +345,7 @@ class XCBuildConfigurationMerger3(_SimpleDictMerger3):
         result[attribute] = merge_ordered_dict(values_diff, values.base, values.mine, values.theirs)
 
         for conflict, resolution in resolved_conflicts.iteritems():
-            result[attribute] = resolution
+            result[attribute][conflict] = resolution
 
         return result
 
